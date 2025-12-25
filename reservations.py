@@ -5,10 +5,10 @@
     "end_date": "2025-04-17",
     "pickup": "Istanbul",
     "return": "Istanbul",
-    "estimated_mileage": 57000,
+    "estimated_mileage": 300,
     "status": "active",
     "checkout": {
-        "odometer": 15000,
+        "odometer": 57350,
         "fuel": 1.6
     },
     "checkin": None
