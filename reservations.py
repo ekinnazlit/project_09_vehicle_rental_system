@@ -1,65 +1,49 @@
+import json
+import os
+import shutil
 from datetime import datetime
 
-def _overlap(s1, e1, s2, e2):
-    return not (e1 < s2 or s1 > e2)
+def load_state(base_dir: str):
+    def load(name):
+        path = os.path.join(base_dir, name)
+        if not os.path.exists(path):
+            return []
+        with open(path) as f:
+            return json.load(f)
 
-def check_availability(reservations: list, vehicle_id: str,
-                       start_date: str, end_date: str) -> bool:
-    for r in reservations:
-        if r["vehicle_id"] == vehicle_id and r["status"] == "active":
-            if _overlap(r["start_date"], r["end_date"], start_date, end_date):
-                return False
-    return True
+    return (
+        load("vehicles.json"),
+        load("customers.json"),
+        load("reservations.json")
+    )
 
-def create_reservation(reservations: list, reservation_data: dict,
-                       vehicles: list) -> dict:
-    if not check_availability(
-        reservations,
-        reservation_data["vehicle_id"],
-        reservation_data["start_date"],
-        reservation_data["end_date"]
-    ):
-        raise ValueError("Vehicle not available")
+def save_state(base_dir: str, vehicles: list,
+               customers: list, reservations: list) -> None:
+    os.makedirs(base_dir, exist_ok=True)
 
-    reservation = {
-        "id": f"R-{len(reservations)+1}",
-        "status": "active",
-        "checkout": None,
-        "checkin": None,
-        "invoice": None
-    }
-    reservation.update(reservation_data)
-    reservations.append(reservation)
-    return reservation
+    def save(name, data):
+        with open(os.path.join(base_dir, name), "w") as f:
+            json.dump(data, f, indent=2)
 
-def cancel_reservation(reservations: list, reservation_id: str) -> bool:
-    for r in reservations:
-        if r["id"] == reservation_id and r["status"] == "active":
-            r["status"] = "cancelled"
-            return True
-    return False
+    save("vehicles.json", vehicles)
+    save("customers.json", customers)
+    save("reservations.json", reservations)
 
-def calculate_invoice(reservation: dict, pricing_rules: dict) -> dict:
-    days = pricing_rules["days"]
-    base = days * pricing_rules["rate_per_day"]
-    mileage = reservation["estimated_mileage"] * pricing_rules["rate_per_km"]
-    insurance = pricing_rules.get("insurance", 0)
-    tax = (base + mileage + insurance) * pricing_rules["tax_rate"]
+def backup_state(base_dir: str, backup_dir: str) -> list[str]:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = os.path.join(backup_dir, f"backup_{timestamp}")
+    os.makedirs(dest, exist_ok=True)
 
-    return {
-        "base": base,
-        "mileage": mileage,
-        "insurance": insurance,
-        "tax": tax,
-        "total": base + mileage + insurance + tax
-    }
+    copied = []
+    for f in ["vehicles.json", "customers.json", "reservations.json"]:
+        src = os.path.join(base_dir, f)
+        if os.path.exists(src):
+            shutil.copy(src, dest)
+            copied.append(os.path.join(dest, f))
+    return copied
 
-def complete_rental(reservations: list, reservation_id: str,
-                    return_data: dict, vehicles: list) -> dict:
-    for r in reservations:
-        if r["id"] == reservation_id and r["status"] == "active":
-            r["checkin"] = return_data
-            r["status"] = "completed"
-            return r
-    raise ValueError("Reservation not active")
+def validate_reservation(reservation: dict) -> bool:
+    required = ["id", "vehicle_id", "start_date", "end_date", "status"]
+    return all(k in reservation for k in required)
+
 
