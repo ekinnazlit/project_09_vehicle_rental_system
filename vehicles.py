@@ -1,44 +1,51 @@
 import json
-def generate_id(vehicles):
-    return len(vehicles) +1
+import os
+
 def load_vehicles(path: str) -> list:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        print("error")
+    if not os.path.exists(path):
         return []
+    with open(path, "r") as f:
+        return json.load(f)
 
-def save_vehicles(path:str, vehicles:list) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(vehicles, f, indent=4)
-def add_vehicle(vehicles: list, vehicle_data: dict):
+def save_vehicles(path: str, vehicles: list) -> None:
+    with open(path, "w") as f:
+        json.dump(vehicles, f, indent=2)
+
+def add_vehicle(vehicles: list, vehicle_data: dict) -> dict:
     vehicle = {
-        "id": generate_id(vehicles),
-        "model": vehicle_data["model"],
-        "year": vehicle_data["year"],
-        "availability": "available",
-        "rate_per_day": vehicle_data.get("rate_per_day",0),
-        "rate_per_week": vehicle_data.get("rate_per_week",0),
-        "rate_per_hour": vehicle_data.get("rate_per_hour",0),
+        "id": f"V-{len(vehicles)+1}",
+        "status": "available",
+        "maintenance": []
     }
+    vehicle.update(vehicle_data)
     vehicles.append(vehicle)
-
     return vehicle
-def update_vehicle(vehicles: list, vehicle_id: int, updates: dict) -> dict:
-    for v in vehicle:
-        if v["id"] == vehicle.id:
+
+def update_vehicle(vehicles: list, vehicle_id: str, updates: dict) -> dict:
+    for v in vehicles:
+        if v["id"] == vehicle_id:
             v.update(updates)
             return v
-        raise ValueError("Vehicle id not found, please enter another id.")
+    raise ValueError("Vehicle not found")
+
+def set_vehicle_status(vehicles: list, vehicle_id: str, status: str) -> dict:
+    for v in vehicles:
+        if v["id"] == vehicle_id:
+            v["status"] = status
+            return v
+    raise ValueError("Vehicle not found")
 
 def list_available_vehicles(
-        vehicles: list,
-        vehicle_type: str | None = None
+    vehicles: list,
+    rental_dates: tuple[str, str],
+    vehicle_type: str | None = None
 ) -> list:
-    available_vehicles = []
+    result = []
     for v in vehicles:
-        if v["availability"] == "available":
-            if vehicle_type is None or v["type"] == vehicle_type:
-                available_vehicles.append(v)
-    return available_vehicles
+        if v["status"] != "available":
+            continue
+        if vehicle_type and v["type"] != vehicle_type:
+            continue
+        result.append(v)
+    return result
+
