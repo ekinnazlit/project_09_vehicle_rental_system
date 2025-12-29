@@ -2,48 +2,47 @@ import json
 import os
 import shutil
 from datetime import datetime
-def load_state(base_dir: str) -> tuple[list, list, list]:
-    def load_file(filename):
-        path = os.path.join(base_dir, filename)
+
+def load_state(base_dir: str):
+    def load(name):
+        path = os.path.join(base_dir, name)
         if not os.path.exists(path):
             return []
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
 
-    vehicles = load_file("vehicles.json")
-    customers = load_file("customers.json")
-    reservations = load_file("reservations.json")
+    return (
+        load("vehicles.json"),
+        load("customers.json"),
+        load("reservations.json")
+    )
 
-    return vehicles, customers, reservations
-def save_state(base_dir: str,
-               vehicles: list,
-               customers: list,
-               reservations: list) -> None:
+def save_state(base_dir: str, vehicles: list,
+               customers: list, reservations: list) -> None:
     os.makedirs(base_dir, exist_ok=True)
 
-    def save_file(filename, data):
-        path = os.path.join(base_dir, filename)
-        with open(path, "w") as f:
+    def save(name, data):
+        with open(os.path.join(base_dir, name), "w") as f:
             json.dump(data, f, indent=2)
 
-    save_file("vehicles.json", vehicles)
-    save_file("customers.json", customers)
-    save_file("reservations.json", reservations)
+    save("vehicles.json", vehicles)
+    save("customers.json", customers)
+    save("reservations.json", reservations)
+
+def backup_state(base_dir: str, backup_dir: str) -> list[str]:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = os.path.join(backup_dir, f"backup_{timestamp}")
+    os.makedirs(dest, exist_ok=True)
+
+    copied = []
+    for f in ["vehicles.json", "customers.json", "reservations.json"]:
+        src = os.path.join(base_dir, f)
+        if os.path.exists(src):
+            shutil.copy(src, dest)
+            copied.append(os.path.join(dest, f))
+    return copied
 
 def validate_reservation(reservation: dict) -> bool:
-    required_fields = [
-        "id",
-        "vehicle_id",
-        "start_date",
-        "end_date",
-        "status"
-    ]
+    required = ["id", "vehicle_id", "start_date", "end_date", "status"]
+    return all(k in reservation for k in required)
 
-    for field in required_fields:
-        if field not in reservation:
-            return False
-
-    if reservation["status"] not in {"active", "cancelled", "completed"}:
-        return False
-
-    return True
