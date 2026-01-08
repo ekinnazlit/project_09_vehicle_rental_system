@@ -1,5 +1,5 @@
 from storage import load_state, save_state, backup_state
-from vehicles import add_vehicle
+from vehicle import add_vehicle
 from customers import register_customer
 from reservations import create_reservation
 from datetime import date
