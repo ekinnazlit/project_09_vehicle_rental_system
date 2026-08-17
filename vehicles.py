@@ -12,11 +12,23 @@ def save_vehicles(path: str, vehicles: list) -> None:
         json.dump(vehicles, f, indent=2)
 
 def add_vehicle(vehicles: list, vehicle_data: dict) -> dict:
+    numbers = []
+
+    for v in vehicles:
+        number = int(v["id"].replace("V-", ""))
+        numbers.append(number)
+
+    if len(vehicles) == 0:
+        next_id = 1
+    else:
+        next_id = max(numbers) + 1
+
     vehicle = {
-        "id": f"V-{len(vehicles)+1}",
+        "id": f"V-{next_id}",
         "status": "available",
         "maintenance": []
     }
+
     vehicle.update(vehicle_data)
     vehicles.append(vehicle)
     return vehicle
