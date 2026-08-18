@@ -12,6 +12,32 @@ def save_vehicles(path: str, vehicles: list) -> None:
         json.dump(vehicles, f, indent=2)
 
 def add_vehicle(vehicles: list, vehicle_data: dict) -> dict:
+    if vehicle_data["brand"].strip() == "":
+        raise ValueError("Brand cannot be empty")
+
+    if vehicle_data["model"].strip() == "":
+        raise ValueError("Model cannot be empty")
+
+    if not isinstance(vehicle_data["year"], int):
+        raise ValueError("Year must be a number")
+
+    if vehicle_data["year"] < 1990 or vehicle_data["year"] > 2029:
+        raise ValueError("Vehicle year must be between 1990 and 2029")
+
+    allowed_types = ["sedan", "suv", "hatchback", "van"]
+
+    vehicle_type = vehicle_data["type"].lower()
+
+    if vehicle_type not in allowed_types:
+        raise ValueError("Invalid vehicle type")
+    vehicle_data["type"] = vehicle_type
+
+    if not isinstance(vehicle_data["daily_price"], (int, float)):
+        raise ValueError("Daily price must be a number")
+
+    if vehicle_data["daily_price"] <= 0:
+        raise ValueError("Daily price must be greater than zero")
+
     numbers = []
 
     for v in vehicles:
@@ -28,7 +54,6 @@ def add_vehicle(vehicles: list, vehicle_data: dict) -> dict:
         "status": "available",
         "maintenance": []
     }
-
     vehicle.update(vehicle_data)
     vehicles.append(vehicle)
     return vehicle
