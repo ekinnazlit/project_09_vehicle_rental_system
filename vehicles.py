@@ -38,16 +38,19 @@ def add_vehicle(vehicles: list, vehicle_data: dict) -> dict:
     if vehicle_data["daily_price"] <= 0:
         raise ValueError("Daily price must be greater than zero")
 
+
     numbers = []
 
     for v in vehicles:
-        number = int(v["id"].replace("V-", ""))
-        numbers.append(number)
+        vehicle_id = v["id"]
 
-    if len(vehicles) == 0:
-        next_id = 1
-    else:
-        next_id = max(numbers) + 1
+        if vehicle_id.startswith("V-"):
+            number_part = vehicle_id[2:]
+
+            if number_part.isdigit():
+                numbers.append(int(number_part))
+
+    next_id = max(numbers, default=0) + 1
 
     vehicle = {
         "id": f"V-{next_id}",

@@ -11,18 +11,34 @@ def save_customers(path: str, customers: list) -> None:
     with open(path, "w") as f:
         json.dump(customers, f, indent=2)
 
+
 def register_customer(customers: list, profile: dict) -> dict:
     for c in customers:
-        if c["license_number"] == profile["license_number"]:
+        if c.get("license_number") == profile["license_number"]:
             raise ValueError("License already exists")
 
+    numbers = []
+
+    for c in customers:
+        customer_id = c.get("id", "")
+
+        if customer_id.startswith("C-"):
+            number_part = customer_id[2:]
+
+            if number_part.isdigit():
+                numbers.append(int(number_part))
+
+    next_id = max(numbers, default=0) + 1
+
     customer = {
-        "id": f"C-{len(customers)+1}",
+        "id": f"C-{next_id}",
         "rentals": [],
         "flags": []
     }
+
     customer.update(profile)
     customers.append(customer)
+
     return customer
 
 def authenticate_customer(customers: list, license_number: str, pin: str):

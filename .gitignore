@@ -1,3 +1,19 @@
 .idea/
 __pycache__/
 *.pyc
+
+
+# Customer and reservation data
+data/
+backups/
+reservations.json
+
+# Generated reports
+test_revenue_report.json
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets
+.env

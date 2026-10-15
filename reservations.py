@@ -1,50 +1,5 @@
-import json
+import uuid
 from datetime import datetime
-
-def utilization_report(reservations: list, vehicles: list, period):
-    start, end = period
-    days_total = (datetime.fromisoformat(end) -
-                  datetime.fromisoformat(start)).days + 1
-    report = {}
-
-    for v in vehicles:
-        used = 0
-        for r in reservations:
-            if r["vehicle_id"] == v["id"] and r["status"] == "completed":
-                s = max(start, r["start_date"])
-                e = min(end, r["end_date"])
-                if s <= e:
-                    used += (datetime.fromisoformat(e) -
-                             datetime.fromisoformat(s)).days + 1
-        report[v["id"]] = round((used / days_total) * 100, 2)
-
-    return report
-
-def revenue_summary(reservations: list, period):
-    start, end = period
-    revenue = {}
-
-    for r in reservations:
-        if r["status"] != "completed":
-            continue
-        if start <= r["end_date"] <= end:
-            month = r["end_date"][:7]
-            revenue[month] = revenue.get(month, 0) + r["invoice"]["total"]
-
-    return revenue
-
-def upcoming_returns(reservations: list, reference_date: str) -> list:
-    return [
-        r for r in reservations
-        if r["status"] == "active" and r["end_date"] >= reference_date
-    ]
-
-def export_report(report: dict, filename: str) -> str:
-    with open(filename, "w") as f:
-        json.dump(report, f, indent=2)
-    return filename
-
-
 
 def create_reservation(reservations: list, reservation_data: dict, vehicles: list) -> dict:
 
@@ -52,7 +7,7 @@ def create_reservation(reservations: list, reservation_data: dict, vehicles: lis
         "vehicle_id", "customer_id",
         "start_date", "end_date",
         "pickup", "return",
-        "estimated_mileage"
+        "estimated_mileage",
     ]
 
     for field in required:
@@ -73,13 +28,40 @@ def create_reservation(reservations: list, reservation_data: dict, vehicles: lis
     if not vehicle:
         raise ValueError("Vehicle not found")
 
-    for r in reservations:
-        if r["vehicle_id"] == reservation_data["vehicle_id"]:
-            existing_start = datetime.strptime(r["start_date"], "%Y-%m-%d")
-            existing_end = datetime.strptime(r["end_date"], "%Y-%m-%d")
-            if start < existing_end and end > existing_start:
-                raise ValueError("Vehicle already reserved in this period")
+    if vehicle["status"] != "available":
+        raise ValueError("Vehicle is not available")
 
+
+    for r in reservations:
+        if (
+            r["vehicle_id"] == reservation_data["vehicle_id"]
+            and r["status"] != "cancelled"
+        ):
+            existing_start = datetime.strptime(
+                r["start_date"], "%Y-%m-%d"
+            )
+            existing_end = datetime.strptime(
+                r["end_date"], "%Y-%m-%d"
+            )
+
+            if start < existing_end and end > existing_start:
+                raise ValueError(
+                    "Vehicle already reserved in this period"
+                )
+
+    if (
+        isinstance(reservation_data["estimated_mileage"], bool)
+        or not isinstance(
+            reservation_data["estimated_mileage"], (int, float)
+        )
+    ):
+        raise ValueError("Estimated mileage must be a number")
+
+    if reservation_data["estimated_mileage"] < 0:
+        raise ValueError("Estimated mileage cannot be negative")
+
+    rental_days = (end - start).days
+    estimated_price = rental_days * vehicle["daily_price"]
     reservation = {
         "id": str(uuid.uuid4())[:8],
         "vehicle_id": reservation_data["vehicle_id"],
@@ -90,10 +72,106 @@ def create_reservation(reservations: list, reservation_data: dict, vehicles: lis
         "return": reservation_data["return"],
         "estimated_mileage": reservation_data["estimated_mileage"],
         "status": "active",
-        "created_at": datetime.now().strftime("%Y-%m-%d")
+        "created_at": datetime.now().strftime("%Y-%m-%d"),
+        "rental_days": rental_days,
+        "estimated_price": estimated_price,
     }
 
     reservations.append(reservation)
+    return reservation
+
+
+def cancel_reservation(reservations: list, reservation_id: str) -> dict:
+    for r in reservations:
+        if r["id"] == reservation_id:
+
+            if r["status"] != "active":
+                raise ValueError("Only active reservations can be cancelled")
+
+            r["status"] = "cancelled"
+            return r
+
+    raise ValueError("Reservation not found")
+
+
+def calculate_invoice(
+    reservation: dict,
+    vehicle: dict,
+    actual_mileage: float,
+    insurance_fee: float = 300,
+    tax_rate: float = 0.10
+) -> dict:
+
+    if actual_mileage < 0:
+        raise ValueError("Mileage cannot be negative")
+
+    if insurance_fee < 0:
+        raise ValueError("Insurance fee cannot be negative")
+
+    if not 0 <= tax_rate <= 1:
+        raise ValueError("Tax rate must be between 0 and 1")
+
+    rental_cost = (
+        reservation["rental_days"] * vehicle["daily_price"]
+    )
+
+    mileage_cost = (
+        actual_mileage * vehicle["rate_per_km"]
+    )
+
+    subtotal = rental_cost + mileage_cost + insurance_fee
+    tax = subtotal * tax_rate
+    total = subtotal + tax
+
+    invoice = {
+        "rental_cost": round(rental_cost, 2),
+        "mileage_cost": round(mileage_cost, 2),
+        "insurance_fee": round(insurance_fee, 2),
+        "subtotal": round(subtotal, 2),
+        "tax": round(tax, 2),
+        "total": round(total, 2)
+    }
+
+    return invoice
+
+
+
+def complete_rental(
+    reservations: list,
+    vehicles: list,
+    reservation_id: str,
+    actual_mileage: float
+) -> dict:
+
+    reservation = next(
+        (r for r in reservations if r["id"] == reservation_id),
+        None
+    )
+
+    if reservation is None:
+        raise ValueError("Reservation not found")
+
+    if reservation["status"] != "active":
+        raise ValueError("Only active reservations can be completed")
+
+    vehicle = next(
+        (v for v in vehicles if v["id"] == reservation["vehicle_id"]),
+        None
+    )
+
+    if vehicle is None:
+        raise ValueError("Vehicle not found")
+
+    invoice = calculate_invoice(
+        reservation,
+        vehicle,
+        actual_mileage
+    )
+
+    reservation["invoice"] = invoice
+    reservation["actual_mileage"] = actual_mileage
+    reservation["status"] = "completed"
+
     return reservation
 
 
